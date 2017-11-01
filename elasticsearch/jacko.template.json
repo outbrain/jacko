@@ -1,0 +1,25 @@
+{
+  "template": "jacko-*",
+  "settings" : {
+    "index" : {
+      "refresh_interval" : "5s"
+    }
+  },
+  "mappings": {
+    "history_server": {
+      "dynamic_templates": [
+        {
+          "strings": {
+            "mapping": {
+              "type": "keyword"
+            },
+            "match_mapping_type": "string"
+          }
+        }
+      ]
+    }
+  },
+  "aliases": {
+    "jacko": {}
+  }
+}

@@ -3,14 +3,19 @@
 import argparse
 import importlib
 import logging
+import platform
 import sys
 import time
+
+from prometheus_client import CollectorRegistry, Counter, Summary, pushadd_to_gateway
 
 from ElasticsearchReporter import ElasticsearchReporter
 from HistoryServerClient import HistoryServerClient
 from enrichers.ClusterNameEnricher import ClusterNameEnricher
-from scrapers.HistoryServerScraper import HistoryServerScraper
 from enrichers.Enricher import Enricher
+from scrapers.HistoryServerScraper import HistoryServerScraper
+
+HOST = platform.uname()[1]
 
 
 def setup_logging(log_level):
@@ -43,6 +48,8 @@ def parse_args():
                         help='Elasticsearch type, default is "history_server"')
     parser.add_argument('-hs', '--history_server', dest='history_servers', action='append', required=True,
                         help='History Server host and an optional cluster name, e.g. "localhost,MyLocalYarn"')
+    parser.add_argument('-p', '--prometheus_pushgateway', dest='prometheus_pushgateways', action='append',
+                        required=False, help='Prometheus Pushgateway host')
     parser.add_argument('-m', '--max_pool_size', type=int, dest='max_pool_size', default=16,
                         help='Max pool size to get jobs concurrently, default 16')
     parser.add_argument('-en', '--enricher', dest='enrichers', action='append',
@@ -103,6 +110,7 @@ def parse_enrichers(args):
 def main():
     args = parse_args()
     logger = setup_logging(args.log_level)
+    metrics_registry = CollectorRegistry()
     logger.info("Jacko started")
 
     es_reporter = ElasticsearchReporter(es_host=args.es_host, es_index=args.es_index, es_type=args.es_type)
@@ -113,17 +121,27 @@ def main():
     external_enrichers = parse_enrichers(args)
 
     all_jobs = []
+    jobs_counter = Counter('jobs_scraped', 'Number of jobs scraped', labelnames=['instance', 'cluster_name'],
+                           registry=metrics_registry)
+    scrape_errors_counter = Counter('scrape_errors', 'Number of errors during scrape',
+                                    labelnames=['instance', 'cluster_name', 'exception_type'],
+                                    registry=metrics_registry)
+    scrape_time = Summary('scrape_time', 'Time to scrape all jobs', labelnames=['instance', 'cluster_name'],
+                          registry=metrics_registry)
     for (cluster_name, scraper) in scrapers:
         try:
-            jobs = scraper.scrape()
+            with scrape_time.labels(HOST, cluster_name).time():
+                jobs = scraper.scrape()
+            jobs_counter.labels(HOST, cluster_name).inc(len(jobs))
             scraper_enrichers = [ClusterNameEnricher(cluster_name)]
             enrichers = scraper_enrichers + external_enrichers
             for job in jobs:
                 for enricher_class in enrichers:
                     enricher_class.enrich(job)
             all_jobs.extend(jobs)
-        except Exception:
+        except Exception as e:
             logger.exception("Exception encountered while processing cluster %s", cluster_name)
+            scrape_errors_counter.labels(HOST, cluster_name, type(e).__name__).inc()
             if args.abort_on_error:
                 return "Exception encountered while processing cluster %s, aborting." % cluster_name
     jobs_count = len(all_jobs)
@@ -131,12 +149,27 @@ def main():
 
     if jobs_count > 0:
         if not args.skip_indexing:
-            logger.info("Indexing to Elasticsearch, host %s index %s type %s", args.es_host, args.es_index,
-                        args.es_type)
-            es_reporter.report(all_jobs)
+            logger.info("Indexing to Elasticsearch, host %s index %s type %s",
+                        es_reporter.es_host, es_reporter.es_index, es_reporter.es_type)
+            indexed_jobs_counter = Counter('docs_indexed', 'Number of jobs indexed',
+                                           labelnames=['instance', 'elasticsearch_host'],
+                                           registry=metrics_registry)
+            index_time = Summary('index_time', 'Time to index all jobs', labelnames=['instance', 'elasticsearch_host'],
+                                 registry=metrics_registry)
+            with index_time.labels(HOST, es_reporter.es_host).time():
+                es_reporter.report(all_jobs)
             logger.info("%d jobs indexed in Elasticsearch", jobs_count)
+            indexed_jobs_counter.labels(HOST, es_reporter.es_host).inc(jobs_count)
         else:
             logger.info("Skipping indexing to Elasticsearch")
+
+    if args.prometheus_pushgateways:
+        Counter('jacko_runs', 'Number of Jacko runs', ['instance'], registry=metrics_registry).labels(HOST).inc()
+        for gateway in args.prometheus_pushgateways:
+            try:
+                pushadd_to_gateway(gateway=gateway, job='jacko', registry=metrics_registry, timeout=5)
+            except Exception as e:
+                logger.exception('Error pushing metrics to %s' % gateway)
 
     logger.info("Jacko finished")
 

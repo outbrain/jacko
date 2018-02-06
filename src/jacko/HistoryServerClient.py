@@ -1,9 +1,8 @@
 import logging
 
 import requests
-from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
-from requests.packages.urllib3.util import Retry
+from requests.packages.urllib3.util.retry import Retry
 
 
 class HistoryServerClient(object):
@@ -27,7 +26,8 @@ class HistoryServerClient(object):
         retries = Retry(total=5,
                         backoff_factor=0.1,
                         status_forcelist=[500, 502, 503, 504])
-        self.session.mount('http://', HTTPAdapter(max_retries=retries))
+        for prefix in ['http://', 'https://']:
+            self.session.adapters[prefix].max_retries = retries
 
     def get_jobs(self):
         """

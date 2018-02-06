@@ -25,7 +25,7 @@ class JobScraper(object):
         :return: Job from the History Server
         """
         job = self.history_server_client(job_id)
-        job["timestamp"] = datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        job["timestamp"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         return job
 
     def __call__(self, job_id):

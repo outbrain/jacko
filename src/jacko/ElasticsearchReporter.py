@@ -1,4 +1,5 @@
 import logging
+from collections import deque
 from datetime import datetime
 
 from elasticsearch import Elasticsearch
@@ -21,6 +22,7 @@ class ElasticsearchReporter(object):
         self.logger.debug("Connected to Elasticsearch host %s", es_host)
         self.es_index = es_index
         self.es_type = es_type
+        self.es_host = es_host
 
     def report(self, jobs):
         """
@@ -28,14 +30,18 @@ class ElasticsearchReporter(object):
 
         :param jobs: List of jobs
         """
-        actions = ({
-            "_index": "%s-%s" % (self.es_index, datetime.fromtimestamp(job["finishTime"] / 1000).strftime("%Y-%m-%d")),
-            "_type": self.es_type,
-            "_id": job["id"],
-            "_source": job,
-        } for job in jobs)
 
-        helpers.bulk(client=self.es, actions=actions)
+        def generate_actions(all_jobs):
+            for job in all_jobs:
+                yield {
+                    "_index": "%s-%s" % (self.es_index,
+                                         datetime.fromtimestamp(job["finishTime"] / 1000).strftime("%Y-%m-%d")),
+                    "_type": self.es_type,
+                    "_id": job["id"],
+                    "_source": job,
+                }
+
+        deque(helpers.parallel_bulk(client=self.es, actions=generate_actions(jobs)), maxlen=0)
 
     def get_latest_finish_time(self, cluster_name):
         """

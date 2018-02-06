@@ -8,16 +8,24 @@ The Jacko.py script reads jobs info from the [MapReduce History Server](https://
 
 - Create the Elasticsearch index template:
 
-```curl -XPUT 'elasticsearchhost:9200/_template/jacko?pretty' -H 'Content-Type: application/json' -d @jacko.template.json```
+```sh
+curl -XPUT 'elasticsearchhost:9200/_template/jacko?pretty' -H 'Content-Type: application/json' -d @jacko.template.json
+```
 
 - Create a Kibana index pattern for "jacko-*":
 
-```http://kibanahost:5601/app/kibana#/management/kibana/index?id=jacko-*```
+```sh
+curl -f -XPOST -H "Content-Type: application/json" -H "kbn-xsrf: anything" \
+     "http://kibanahost:5601/api/saved_objects/index-pattern/jacko-*" \
+     -d"{\"attributes\":{\"title\":\"jacko-*\",\"timeFieldName\":\"timestamp\"}}"
+```
 
 - Import the Kibana visualizations, then the dashboard
 - Install Python dependencies:
 
-```pip install -r requirements.txt```
+```sh
+pip install -r requirements.txt
+```
 
 - Run Jacko.py with "--time 0" to index all the data from the History Server
 

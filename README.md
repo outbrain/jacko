@@ -1,33 +1,31 @@
 # Jacko
 
-Jacko (pronounced JAH-ko) is a set of Kibana dashboards and visualizations to monitor and analyze [YARN](https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/YARN.html) jobs.
+Jacko (pronounced JAH-ko) is a tool for analysis and for visualizing the behaviour and performance of Hadoop clusters.
 
-The Jacko.py script reads jobs info from the [MapReduce History Server](https://hadoop.apache.org/docs/current/hadoop-mapreduce-client/hadoop-mapreduce-client-hs/HistoryServerRest.html) and indexes it in Elasticsearch.
+It collects data about jobs running on the cluster and indexes it to Elasticsearch, so it can be queried or visualized in Kibana.
 
-#### Bootstrap
+It currently supports reading jobs from [MapReduce History Server](https://hadoop.apache.org/docs/current/hadoop-mapreduce-client/hadoop-mapreduce-client-hs/HistoryServerRest.html) with plans to support other APIs, e.g.  [Spark History Server](https://spark.apache.org/docs/latest/monitoring.html).
 
-- Create the Elasticsearch index template:
+### Bootstrap
 
+#### Using Docker
+
+- Build the image:
 ```sh
-curl -XPUT 'elasticsearchhost:9200/_template/jacko?pretty' -H 'Content-Type: application/json' -d @jacko.template.json
+docker build -t jacko .
 ```
 
-- Create a Kibana index pattern for "jacko-*":
-
+- Create the container:
 ```sh
-curl -f -XPOST -H "Content-Type: application/json" -H "kbn-xsrf: anything" \
-     "http://kibanahost:5601/api/saved_objects/index-pattern/jacko-*" \
-     -d"{\"attributes\":{\"title\":\"jacko-*\",\"timeFieldName\":\"timestamp\"}}"
+docker run -d -p 5601:5601 -p 9200:9200 --name jacko1 jacko
 ```
 
-- Import the Kibana visualizations, then the dashboard
-- Install Python dependencies:
-
+- Run Jacko to index the jobs from your History Server to Elasticsearch:
 ```sh
-pip install -r requirements.txt
+docker exec -i -t jacko1 python jacko/Jacko.py --history_server historyserverhost --elasticsearch localhost
 ```
 
-- Run Jacko.py with "--time 0" to index all the data from the History Server
+- Go to Kibana ([http://localhost:5601/app/kibana](http://localhost:5601/app/kibana)) and start exploring.
 
 ### Jacko.py Usage
 

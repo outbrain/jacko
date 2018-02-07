@@ -1,6 +1,6 @@
 # Jacko
 
-Jacko (pronounced JAH-ko) is a tool for analysis and for visualizing the behaviour and performance of Hadoop clusters. It collects data about jobs running on the cluster and indexes it to Elasticsearch, so it can be queried or visualized in Kibana.
+Jacko (pronounced JAH-ko) is an analysis and visualization tool for the behaviour and performance of Hadoop clusters. It collects data about jobs running on the cluster and indexes it to Elasticsearch, where it can be queried or visualized in Kibana.
 
 It currently supports reading jobs from [MapReduce History Server](https://hadoop.apache.org/docs/current/hadoop-mapreduce-client/hadoop-mapreduce-client-hs/HistoryServerRest.html) with plans to support other APIs, e.g.  [Spark History Server](https://spark.apache.org/docs/latest/monitoring.html).
 

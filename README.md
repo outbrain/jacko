@@ -47,7 +47,7 @@ $ Jacko.py --history_server historyserverhost,my_cluster --history_server anothe
 - *--abort_on_error*: Abort on any error during fetching of jobs from any cluster
 - *--log_level*: Logging level, default is INFO
 
-### More info:
+### Background and Motivation:
 
 https://www.outbrain.com/techblog/2018/03/meet-jacko-bringing-hadoop-resource-utilization-view/
 
